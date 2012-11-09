@@ -1,0 +1,3 @@
+*.fseventsd/fseventsd-uuid
+*.DS_Store
+*.settings
