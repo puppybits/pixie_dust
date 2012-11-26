@@ -57,7 +57,8 @@ ARCHIVE_XCODE=""
 ARCHIVE_DSYM=""
 ARCHIVE_APP=""
 RELEASE_NOTES=""
-
+DSYM_TARGET=""
+IPA_TARGET=""
 
 
 usage()
@@ -186,7 +187,7 @@ function setXcodeProjectSpecificVariables()
     WRAPPER_NAME=${WRAPPER_NAME##}
     echo $WRAPPER_NAME
     
-    DSYM="$ARCHIVE_DSYMS_PATH/$DWARF_DSYM_FILE_NAME"
+    DSYM="$DWARF_DSYM_FOLDER_PATH/$DWARF_DSYM_FILE_NAME"
     APP="$ARCHIVE_PRODUCTS_PATH/$INSTALL_PATH/$WRAPPER_NAME"
     
     echo $DSYM
@@ -426,17 +427,22 @@ function createAPP ()
         exit 1
     fi
     
+    DSYM_TARGET="$LOCAL_DIR"/bin/"$XCODE_TARGET".dSYMs.zip
+    IPA_TARGET="$LOCAL_DIR"/bin/"$XCODE_TARGET".ipa
+
     echo >> $BUILD_LOG
     echo "Creating APP." >> $BUILD_LOG
     # echo "app ${ARCHIVE_APP}" >> $BUILD_LOG
     # echo "prov ${MOBILEPROVISION_FILE}" >> $BUILD_LOG
-    # echo /usr/bin/xcrun -sdk iphoneos PackageApplication "/Users/Bytes/Library/Developer/Xcode/Archives/2012-10-11/PixieDust 10-11-12 10.35 PM.xcarchive/Products/Applications/PixieDust.app" -o /tmp/app.ipa --embed "/Users/Bytes/Library/MobileDevice/Provisioning Profiles/......mobileprovision" --sign "......"
+    # echo /usr/bin/xcrun -sdk iphoneos PackageApplication "..." -o /tmp/app.ipa --embed "..." --sign "..."
     
-    /usr/bin/xcrun -sdk iphoneos PackageApplication "${ARCHIVE_APP}" -o /tmp/app.ipa >> $BUILD_LOG 2>&1
+    /usr/bin/xcrun -sdk iphoneos PackageApplication "${ARCHIVE_APP}" -o "$IPA_TARGET" >> $BUILD_LOG 2>&1
     
     # /usr/bin/xcrun -sdk iphoneos PackageApplication "${ARCHIVE_APP}" -o /tmp/app.ipa --embed "$MOBILEPROVISION_FILE" --sign "${CODE_SIGN_IDENTITY}" >> $BUILD_LOG 2>&1
     
-    /usr/bin/zip -r "/tmp/app.dSYM.zip" "$ARCHIVE_DSYM" >> $BUILD_LOG 2>&1
+    FILE=$(basename "$ARCHIVE_XCODE")
+    pushd $(dirname "$ARCHIVE_XCODE")
+    /usr/bin/zip -r "$DSYM_TARGET" "$FILE" >> $BUILD_LOG 2>&1
     
     if [ "$?" -ne 0 ]; then
         echo "$MOBILEPROVISION_FILE"
@@ -506,16 +512,16 @@ function uploadTestFlight()
     DISTRIBUTION_LISTS=${DISTRIBUTION_LISTS:-""}
     RELEASE_NOTES=${RELEASE_NOTES:-" "}
     
-    # -F dsym=@"/tmp/app.dSYM.zip" \
-            
+    # -F dsym=@"$DSYM_TARGET" \
+    
     /usr/bin/curl "http://testflightapp.com/api/builds.json" \
-    -F file=@"/tmp/app.ipa" \
+    -F file=@"$IPA_TARGET" \
     -F team_token="$TESTFLIGHT_TEAM_TOKEN" \
     -F api_token="$TESTFLIGHT_API_TOKEN" \
     -F notify="$TESTFLIGHT_SHOULD_NOTIFY" \
     -F distribution_lists="$TESTFLIGHT_DISTRIBUTION_LIST" \
-    -F notes="$RELEASE_NOTES" >> $BUILD_LOG
-    
+    -F notes="$RELEASE_NOTES" >> $BUILD_LOG 2>&1
+
     if [ "$?" -ne 0 ]; then
         echo "Couldn't upload build." >> $BUILD_LOG
         cat $BUILD_LOG
